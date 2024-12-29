@@ -84,6 +84,7 @@ export const protect = catchAsync(async (req, res, next) => {
 
   export const register = catchAsync(async (req, res, next) => {
     const { username, password } = req.body;
+    
   
     if (!username || !password) {
       res.status(400).json({
@@ -119,6 +120,7 @@ export const protect = catchAsync(async (req, res, next) => {
   // Login User
 export const login = catchAsync(async (req, res, next) => {
   const { username, password } = req.body;
+  console.log("req.bodyuu", req.body);
 
   if (!username || !password) {
     res.status(400).json({
@@ -131,8 +133,9 @@ export const login = catchAsync(async (req, res, next) => {
         username: username.toLowerCase(),
   }).select("+password");
 
+
   if (!user || !(await user.comparePassword(password, user.password))) {
-    res.status(401).json({
+    res.status(403).json({
       status: "fail",
       message: "Incorrect username or password",
     });
