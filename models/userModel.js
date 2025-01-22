@@ -10,6 +10,7 @@ const userSchema = new mongoose.Schema(
     },
     photo: {
       type: String,
+      unique: false,
       required: [true, 'Please provide an image'],
     },
     qrCodeUrl: {
