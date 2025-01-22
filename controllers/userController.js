@@ -1,16 +1,19 @@
-import Event from "../models/EventModel.js";
+import User from "../models/UserModel.js";
 import catchAsync from "../utils/catchAsync.js";
 
 
-export const createEvent = catchAsync(async (req, res, next) => {
+export const createUser = catchAsync(async (req, res, next) => {
 
   try {
-    const newEvent = await Event.create(req.body);
+    const newUser = await User.create(req.body);
+    console.log('newUser', newUser);
+    
 
   res.status(200).json({
     status: "success",
+    user: newUser,
     message:
-      "Event created successfully",
+      "User created successfully",
   });
   } catch (error) {
     console.log("EVENT UPDATE ERROR ----> ", error);
@@ -20,13 +23,13 @@ export const createEvent = catchAsync(async (req, res, next) => {
   }
 });
 
-export const updateEvent = catchAsync(async (req, res) => {
+export const updateUser = catchAsync(async (req, res) => {
   try {
-    const updated = await Event.findByIdAndUpdate(req.params.id, req.body);
+    const updated = await User.findByIdAndUpdate(req.params.id, req.body);
     res.status(200).json({
       status: "success",
       message:
-        "Event updated successfully",
+        "User updated successfully",
     });
   } catch (err) {
     console.log("EVENT UPDATE ERROR ----> ", err);
@@ -37,9 +40,9 @@ export const updateEvent = catchAsync(async (req, res) => {
 });
 
 
-export const getEvent = catchAsync(async (req, res) => {
+export const getUser = catchAsync(async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id);
+    const event = await User.findById(req.params.id);
     res.status(200).json(event);
   } catch (err) {
     console.log("EVENT FETCH ERROR ----> ", err);
@@ -49,9 +52,9 @@ export const getEvent = catchAsync(async (req, res) => {
   }
 });
 
-export const getAllEvents = catchAsync(async (req, res) => {
+export const getUsers = catchAsync(async (req, res) => {
   try {
-    let events = await Event.find({})
+    let events = await User.find({})
     res.status(200).json(
       [...events]
     );
@@ -63,9 +66,9 @@ export const getAllEvents = catchAsync(async (req, res) => {
   }
 });
 
-export const deleteEvent = catchAsync(async (req, res, next) => {
+export const deleteUser = catchAsync(async (req, res, next) => {
   try {
-    const deleted = await Event.findByIdAndDelete(req.params.id)
+    const deleted = await User.findByIdAndDelete(req.params.id)
   
     if (!deleted) {
       return next(new AppError('No document found with that ID', 404))
@@ -76,7 +79,7 @@ export const deleteEvent = catchAsync(async (req, res, next) => {
     res.status(204).json({
       status: 'success',
       message:
-      "Event deleted successfully",
+      "User deleted successfully",
     })
   } catch (err) {
     console.log("EVENT DELETE ERROR ----> ", err);
