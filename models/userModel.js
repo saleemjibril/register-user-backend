@@ -2,15 +2,14 @@ import mongoose from 'mongoose';
 
 const userSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: [true, 'Please provide your name'],
-      unique: false,
-      lowercase: true,
-    },
+      name: {
+        type: String,
+        required: [true, 'Please provide your name'],
+        lowercase: true,
+        unique: false 
+      },
     photo: {
       type: String,
-      unique: false,
       required: [true, 'Please provide an image'],
     },
     qrCodeUrl: {

@@ -3,6 +3,7 @@ import catchAsync from "../utils/catchAsync.js";
 
 
 export const createUser = catchAsync(async (req, res, next) => {
+console.log('req.body', req.body);
 
   try {
     const newUser = await User.create(req.body);
@@ -16,7 +17,7 @@ export const createUser = catchAsync(async (req, res, next) => {
       "User created successfully",
   });
   } catch (error) {
-    console.log("EVENT UPDATE ERROR ----> ", error);
+    console.log("EVENT CREATE ERROR ----> ", error);
     res.status(400).json({
       error: error.message,
     });
@@ -24,6 +25,9 @@ export const createUser = catchAsync(async (req, res, next) => {
 });
 
 export const updateUser = catchAsync(async (req, res) => {
+
+  console.log('req.params.id', req);
+  
   try {
     const updated = await User.findByIdAndUpdate(req.params.id, req.body);
     res.status(200).json({
