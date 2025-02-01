@@ -141,6 +141,9 @@ const userSchema = new mongoose.Schema(
     photo: {
       type: String,
     },
+    credentials: {
+      type: Object,
+    },
     leftFingerPrint: {
       type: String,
     },

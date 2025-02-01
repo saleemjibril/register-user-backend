@@ -114,20 +114,57 @@ export const createUser = catchAsync(async (req, res, next) => {
 });
 
 export const updateUser = catchAsync(async (req, res) => {
-  try {
-    const updated = await User.findByIdAndUpdate(req.params.id, req.body);
-    console.log("updated", updated);
+  if (req.body.email) {
+    const existingUser = await User.findOne({ 
+      email: req.body.email, 
+      _id: { $ne: req.params.id }
+    });
 
-    res.status(200).json({
-      status: "success",
-      message: "User updated successfully",
-    });
-  } catch (err) {
-    console.log("EVENT UPDATE ERROR ----> ", err);
-    res.status(400).json({
-      err: err.message,
-    });
+    if (existingUser) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Email is already in use by another user"
+      });
+    }
   }
+  if (req.body.phoneNumber) {
+    const existingUser = await User.findOne({ 
+      phoneNumber: req.body.phoneNumber, 
+      _id: { $ne: req.params.id }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Phone number is already in use by another user"
+      });
+    }
+  }
+
+  if (req.body.idNumber) {
+    const existingUser = await User.findOne({ 
+      idNumber: req.body.idNumber, 
+      _id: { $ne: req.params.id }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Phone number is already in use by another user"
+      });
+    }
+  }
+
+  const updated = await User.findByIdAndUpdate(req.params.id, req.body, {
+    new: true,
+    runValidators: true
+  });
+
+  res.status(200).json({
+    status: "success",
+    message: "User updated successfully",
+    data: updated
+  });
 });
 
 export const getUser = catchAsync(async (req, res) => {
