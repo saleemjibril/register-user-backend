@@ -23,6 +23,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, "Please provide your community"],
       lowercase: true,
+      
     },
     limited: {
       type: String,
