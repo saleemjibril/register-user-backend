@@ -28,15 +28,18 @@ export const createUser = catchAsync(async (req, res, next) => {
     const existingPhoneNumber = await User.findOne({
       phoneNumber,
     });
-    const existingEmail = await User.findOne({ email: email.toLowerCase() });
+    // if(email?.trim()?.length > 0) {
+    //   const existingEmail = await User.findOne({ email: email.toLowerCase() });
+    //   if (existingEmail) {
+    //     res.status(400).json({
+    //       status: "fail",
+    //       message: "Email already exists. Please use another",
+    //     });
+    //   }
+    // }
     const existingIdNumber = await User.findOne({ idNumber });
 
-    if (existingEmail) {
-      res.status(400).json({
-        status: "fail",
-        message: "Email already exists. Please use another",
-      });
-    }
+    
     if (existingPhoneNumber) {
       res.status(400).json({
         status: "fail",
@@ -328,3 +331,28 @@ export const deleteUser = catchAsync(async (req, res, next) => {
     });
   }
 });
+
+
+export const getRegisteredUsers = catchAsync(async (req, res) => {
+  try {
+   
+
+  
+    const users = await User.find({
+      qrCodeUrl: { $exists: true, $ne: '' },
+      photo: { $exists: true, $ne: '' },
+      leftFingerPrint: { $exists: true, $ne: '' },
+      rightFingerPrint: { $exists: true, $ne: '' }
+    })
+
+    res.status(200).json({
+      registeredUsers: users?.length,
+    });
+  } catch (err) {
+    console.log("USER FETCH ERROR ----> ", err);
+    res.status(400).json({
+      err: err.message,
+    });
+  }
+});
+
