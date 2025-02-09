@@ -158,6 +158,16 @@ const userSchema = new mongoose.Schema(
   }
 );
 
+// Add to userModel.js
+userSchema.index({ userId: 1 });
+userSchema.index({ names: 1 });
+userSchema.index({ email: 1 });
+userSchema.index({ phoneNumber: 1 });
+userSchema.index({ age: 1 });
+userSchema.index({ sex: 1 });
+userSchema.index({ state: 1 });
+userSchema.index({ disability: 1 });
+
 const User = mongoose.model("User", userSchema);
 
 export default User;

@@ -270,28 +270,112 @@ export const getUserByParams = catchAsync(async (req, res) => {
 // });
 
 const ITEMS_PER_PAGE = 20;
+const buildQuery = (params) => {
+  const { 
+    searchTerm, 
+    searchType,
+    disability,
+    sex,
+    state,
+    lga,
+    community,
+    religion,
+    physicalFitness 
+  } = params;
+
+  const query = {};
+  
+  // Use $and for better index utilization
+  const conditions = [];
+
+  // Add search condition if present
+  if (searchTerm && searchType) {
+    conditions.push({
+      [searchType]: {
+        $regex: searchTerm,
+        $options: 'i'
+      }
+    });
+  }
+
+  // Add filter conditions
+  if (disability) conditions.push({ disability });
+  if (sex) conditions.push({ sex });
+  if (state) conditions.push({ state });
+  if (lga) conditions.push({ lga });
+  if (community) conditions.push({ community });
+  if (religion) conditions.push({ religion });
+  if (physicalFitness) conditions.push({ physicalFitness });
+
+  if (conditions.length > 0) {
+    query.$and = conditions;
+  }
+
+  return query;
+};
+
 
 export const getUsers = catchAsync(async (req, res) => {
+  console.log("request!");
+  
   try {
-    const { searchTerm, searchType, page = 1 } = req.query;
+    const { 
+      searchTerm, 
+      searchType, 
+      page = 1, 
+      disability,
+      sex,
+      state,
+      lga,
+      community,
+      religion,
+      physicalFitness,
+      sortBy = '_id',
+      sortOrder = 'asc'
+    } = req.query;
+
+    // Build dynamic query object
     let query = {};
 
+    // Add search term if provided
     if (searchTerm && searchType) {
       query[searchType] = {
         $regex: searchTerm,
-        $options: "i",
+        $options: 'i'
       };
     }
 
-    // Calculate skip value for pagination
+    // Add filters
+    const filterFields = [
+      'disability', 'sex', 'state', 'lga', 
+      'community', 'religion', 'physicalFitness'
+    ];
+
+    filterFields.forEach(field => {
+      if (req.query[field]) {
+        query[field] = req.query[field];
+      }
+    });
+
+    // Validate sortBy to prevent injection
+    const validSortFields = [
+      '_id', 'userId', 'names', 'email', 
+      'phoneNumber', 'age', 'sex', 'state', 
+      'community', 'disability'
+    ];
+
+    const sanitizedSortBy = validSortFields.includes(sortBy) ? sortBy : '_id';
+    const sanitizedSortOrder = sortOrder === 'desc' ? -1 : 1;
+
+    // Calculate pagination
     const skip = (parseInt(page) - 1) * ITEMS_PER_PAGE;
 
     // Get total count for pagination
     const totalUsers = await User.countDocuments(query);
 
-    // Get paginated results with natural sorting (by _id)
+    // Get paginated and sorted results
     const users = await User.find(query)
-      .sort({ _id: 1 }) // Sort by _id in ascending order to maintain database order
+      .sort({ [sanitizedSortBy]: sanitizedSortOrder })
       .skip(skip)
       .limit(ITEMS_PER_PAGE);
 
