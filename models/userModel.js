@@ -1,5 +1,25 @@
 import mongoose from "mongoose";
 
+const mealRecordSchema = new mongoose.Schema({
+  date: {
+    type: Date,
+    required: true
+  },
+  breakfast: {
+    type: Boolean,
+    default: false
+  },
+  lunch: {
+    type: Boolean,
+    default: false
+  },
+  dinner: {
+    type: Boolean,
+    default: false
+  }
+});
+
+
 const userSchema = new mongoose.Schema(
   {
     userId: {
@@ -152,6 +172,7 @@ const userSchema = new mongoose.Schema(
     qrCodeUrl: {
       type: String,
     },
+    mealRecords: [mealRecordSchema]
   },
   {
     timestamps: true,
@@ -167,6 +188,7 @@ userSchema.index({ age: 1 });
 userSchema.index({ sex: 1 });
 userSchema.index({ state: 1 });
 userSchema.index({ disability: 1 });
+userSchema.index({ "mealRecords.date": 1 });
 
 const User = mongoose.model("User", userSchema);
 

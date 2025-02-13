@@ -19,6 +19,7 @@ const adminSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: [
+        'food-checker',
         'admin',
         'super-admin',
       ],

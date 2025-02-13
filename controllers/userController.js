@@ -18,7 +18,6 @@ const padNumber = (num, size) => {
 };
 
 export const createUser = catchAsync(async (req, res, next) => {
-  console.log("req.body", req.body);
 
   try {
     // Start a session for atomic operations
@@ -396,6 +395,51 @@ export const getUsers = catchAsync(async (req, res) => {
   }
 });
 
+
+export const getUsersNumbers = catchAsync(async (req, res) => {  
+  try {
+    // Base query to ensure qrCodeUrl exists and is not null
+    let query = {
+      qrCodeUrl: { $exists: true, $ne: null }
+    };
+
+    // Add additional filters
+    const filterFields = [
+      'lga', 
+    ];
+
+    filterFields.forEach(field => {
+      if (req.query[field]) {
+        // Trim whitespace and create case-insensitive regex
+        const cleanValue = req.query[field?.toLowerCase()].trim();
+        query[field?.toLowerCase()] = { 
+          $regex: new RegExp(`^\\s*${cleanValue}\\s*$`, 'i') 
+        };
+      }
+    });
+
+    // Count total users with qrCodeUrl
+    const totalUsers = await User.countDocuments({ 
+      qrCodeUrl: { $exists: true, $ne: null } 
+    });
+
+    console.log('query', query);
+    
+    // Count filtered users with qrCodeUrl plus any additional filters
+    const filteredUsers = await User.countDocuments(query);
+
+    res.status(200).json({
+      totalUsers,
+      filteredUsers
+    });
+  } catch (err) {
+    console.log("USER FETCH ERROR ----> ", err);
+    res.status(400).json({
+      err: err.message,
+    });
+  }
+});
+
 export const deleteUser = catchAsync(async (req, res, next) => {
   try {
     const deleted = await User.findByIdAndDelete(req.params.id);
@@ -417,26 +461,81 @@ export const deleteUser = catchAsync(async (req, res, next) => {
 });
 
 
-export const getRegisteredUsers = catchAsync(async (req, res) => {
+
+export const recordMeal = async (req, res) => {
   try {
-   
+    const { userId } = req.params;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-  
-    const users = await User.find({
-      qrCodeUrl: { $exists: true, $ne: '' },
-      photo: { $exists: true, $ne: '' },
-      leftFingerPrint: { $exists: true, $ne: '' },
-      rightFingerPrint: { $exists: true, $ne: '' }
-    })
+    const currentHour = new Date().getHours();
+    let mealType;
 
-    res.status(200).json({
-      registeredUsers: users?.length,
+    // Determine meal type based on time of day
+    if (currentHour >= 6 && currentHour < 11) {
+      mealType = 'breakfast';
+    } else if (currentHour >= 11 && currentHour < 16) {
+      mealType = 'lunch';
+    } else if (currentHour >= 16 && currentHour < 23.5) {
+      mealType = 'dinner';
+    } else {
+      return res.status(400).json({ message: "Not within meal service hours" });
+    }
+
+    // Find user and update or create meal record
+    
+    const user = await User.findOne({ _id:  userId });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    console.log("today.toDateString()",  today.toDateString());
+    
+
+    // Find or create today's meal record
+    let todayRecord = user.mealRecords.find(
+      record => record.date.toDateString() === today.toDateString()
+    );
+
+    
+
+    
+    // Check if meal already recorded
+    if (!!todayRecord && todayRecord[mealType] === true) {
+      return res.status(400).json({
+        success: false,
+        message: `${mealType.charAt(0).toUpperCase() + mealType.slice(1)} has already been recorded for today`
+      });
+    }
+
+    if (!todayRecord) {
+      // Create new record for today
+      user.mealRecords.push({
+        date: today,
+        [mealType]: true
+      });
+    } else {
+      // Update existing record
+      todayRecord[mealType] = true;
+    }
+
+    await user.save();
+    
+    return res.status(200).json({
+      message: `${mealType} recorded successfully`,
+      mealType,
+      date: today
     });
-  } catch (err) {
-    console.log("USER FETCH ERROR ----> ", err);
-    res.status(400).json({
-      err: err.message,
+  } catch (error) {
+    console.error('Error recording meal:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: "Error recording meal",
+      error: error.message 
     });
   }
-});
+};
+
 
