@@ -62,7 +62,7 @@ export const createUser = catchAsync(async (req, res, next) => {
 
       // Find the last user with same year and LGA to determine next serial number
       const lastUser = await User.findOne({
-        userId: new RegExp(`ISM/B1-${currentYear}/.*`),
+        userId: new RegExp(`ISM/B2-${currentYear}/.*`),
       })
         .sort({ userId: -1 })
         .session(session);
@@ -75,7 +75,7 @@ export const createUser = catchAsync(async (req, res, next) => {
       }
 
       // Generate the unique ID
-      const userId = `ISM/B1-${currentYear}/${lgaInitials}/${padNumber(
+      const userId = `ISM/B2-${currentYear}/${lgaInitials}/${padNumber(
         serialNumber,
         4
       )}`;
@@ -529,12 +529,15 @@ export const recordMeal = async (req, res) => {
 
     // Determine meal type based on time of day
     if (currentHour >= 6 && currentHour < 11) {
-      mealType = "breakfast";
+      mealType = 'breakfast';
     } else if (currentHour >= 11 && currentHour < 16) {
-      mealType = "lunch";
+      mealType = 'lunch';
+    } else if (currentHour >= 16 && currentHour < 23.5) {
+      mealType = 'dinner';
     } else {
-      mealType = "dinner";
+      return res.status(400).json({ message: "Not within meal service hours" });
     }
+
 
     // Find user and update or create meal record
 
