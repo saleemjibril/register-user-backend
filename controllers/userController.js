@@ -529,15 +529,12 @@ export const recordMeal = async (req, res) => {
 
     // Determine meal type based on time of day
     if (currentHour >= 6 && currentHour < 11) {
-      mealType = 'breakfast';
+      mealType = "breakfast";
     } else if (currentHour >= 11 && currentHour < 16) {
-      mealType = 'lunch';
-    } else if (currentHour >= 16 && currentHour < 23.5) {
-      mealType = 'dinner';
+      mealType = "lunch";
     } else {
-      return res.status(400).json({ message: "Not within meal service hours" });
+      mealType = "dinner";
     }
-
 
     // Find user and update or create meal record
 
