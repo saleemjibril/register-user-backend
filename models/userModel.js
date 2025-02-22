@@ -53,6 +53,16 @@ const userSchema = new mongoose.Schema(
       required: [true, "Please provide your district"],
       lowercase: true,
     },
+    state: {
+      type: String,
+      required: [true, "Please provide your state"],
+      lowercase: true,
+    },
+    mspType: {
+      type: String,
+      required: [true, "Please provide your mspType"],
+      lowercase: true,
+    },
     lga: {
       type: String,
       required: [true, "Please provide your lga"],
