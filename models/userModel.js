@@ -45,12 +45,10 @@ const userSchema = new mongoose.Schema(
     },
     limited: {
       type: String,
-      required: [true, "Please provide your community"],
       lowercase: true,
     },
     district: {
       type: String,
-      required: [true, "Please provide your district"],
       lowercase: true,
     },
     state: {
