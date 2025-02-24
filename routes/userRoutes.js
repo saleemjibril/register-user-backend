@@ -9,7 +9,8 @@ import {
   getUsersNumbers, 
   recordMeal,
   downloadUsersExcel,
-  getDailyMealTotals
+  getDailyMealTotals,
+  recordHealthAppointment
 } from '../controllers/userController.js';
 
 const router = express.Router();
@@ -25,6 +26,7 @@ router.get('/meals', getDailyMealTotals);
 router.get('/:id', getUser)
 router.delete('/:id', deleteUser)
 
+router.post('/:userId/health', recordHealthAppointment)
 router.post('/:userId/meals', recordMeal)
 
 

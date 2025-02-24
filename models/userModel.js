@@ -20,6 +20,21 @@ const mealRecordSchema = new mongoose.Schema({
 });
 
 
+const appointmentRecordSchema = new mongoose.Schema({
+  observation: {
+    type: String,
+  },
+  prescriptions: {
+    type: Array,
+  }
+ 
+},
+{
+  timestamps: true,
+}
+);
+
+
 const userSchema = new mongoose.Schema(
   {
     userId: {
@@ -180,7 +195,13 @@ const userSchema = new mongoose.Schema(
     qrCodeUrl: {
       type: String,
     },
-    mealRecords: [mealRecordSchema]
+    operator: {
+      type: String,
+      lowercase: true,
+      default: "no"
+    },
+    mealRecords: [mealRecordSchema],
+    appointments: [appointmentRecordSchema]
   },
   {
     timestamps: true,

@@ -356,6 +356,7 @@ export const getUsers = catchAsync(async (req, res) => {
       "community",
       "religion",
       "physicalFitness",
+      "operator"
     ];
 
     filterFields.forEach((field) => {
@@ -799,3 +800,51 @@ let query;
     });
   }
 });
+
+export const recordHealthAppointment = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const appointmentData = req.body;
+    console.log("userId", userId);
+    console.log("appointmentData", appointmentData);
+    
+
+    
+    
+
+
+    // Find user and update or create meal record
+
+    const user = await User.findOne({ _id: userId });
+
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+
+    
+
+  
+      // Create new record for today
+      user.appointments.push({
+        ...appointmentData
+      });
+   
+
+    await user.save();
+
+    
+
+    return res.status(200).json({
+      message: `appointment recorded successfully`
+    });
+  } catch (error) {
+    console.error("Error recording appointment", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error recording meal",
+      error: error.message,
+    });
+  }
+};

@@ -76,6 +76,7 @@ export const protect = catchAsync(async (req, res, next) => {
   
     res.status(statusCode).json({
       status: "success",
+      role: user?.role,
       token,
       // interests,
     });
