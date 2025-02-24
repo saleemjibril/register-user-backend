@@ -21,7 +21,10 @@ const mealRecordSchema = new mongoose.Schema({
 
 
 const appointmentRecordSchema = new mongoose.Schema({
-  observation: {
+  complaint: {
+    type: String,
+  },
+  diagnosis: {
     type: String,
   },
   prescriptions: {
