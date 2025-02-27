@@ -16,6 +16,6 @@ app.use("/api/v1", allMyRoutes);
 
 
 
-app.listen(process.env.PORT || 8000, () => {
-  console.log('Server started on port 4000');
-});
+// Export the Express app as a function
+// Export the Express app as a function
+export default app;
