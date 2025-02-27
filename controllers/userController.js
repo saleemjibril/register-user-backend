@@ -436,7 +436,7 @@ export const getUsersNumbers = catchAsync(async (req, res) => {
     };
 
     // Add additional filters
-    const filterFields = ["lga"];
+    const filterFields = ["lga", "state"];
 
     console.log("req.query", req.query);
 
@@ -844,6 +844,69 @@ export const recordHealthAppointment = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Error recording meal",
+      error: error.message,
+    });
+  }
+};
+
+export const recordAttendance = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { subject } = req.body;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+
+
+    // Find user and update or create attendance record
+
+    const user = await User.findOne({ _id: userId });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    console.log("today.toDateString()", today.toDateString());
+
+    // Find or create today's attendance record
+    let todayRecord = user.attendance.find(
+      (record) => record.date.toDateString() === today.toDateString() && record?.subject === subject
+    );
+
+    console.log("todayRecord", todayRecord);
+    console.log("req.body", req.body);
+    console.log("subject", subject);
+    console.log("todayRecord[subject] === true", todayRecord?.subject, todayRecord?.subject === subject);
+    
+
+    // Check if attendance already recorded
+    if (!!todayRecord) {
+      return res.status(400).json({
+        success: false,
+        message: `${subject} attendance has already been taken for today`,
+      });
+    }else {
+      // Create new record for today
+      user.attendance.push({
+        date: today,
+      ...req.body
+      });
+    }
+
+  
+    await user.save();
+
+    return res.status(200).json({
+      message: `attendance recorded successfully`,
+      ...req?.body,
+      date: today,
+    });
+  } catch (error) {
+    console.error("Error recording attendance:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error recording attendance",
       error: error.message,
     });
   }

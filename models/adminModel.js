@@ -21,6 +21,7 @@ const adminSchema = new mongoose.Schema(
       enum: [
         'food-checker',
         'health',
+        'attendance',
         'admin',
         'super-admin',
       ],

@@ -38,6 +38,8 @@ const appointmentRecordSchema = new mongoose.Schema({
 );
 
 
+
+
 const userSchema = new mongoose.Schema(
   {
     userId: {
@@ -197,6 +199,9 @@ const userSchema = new mongoose.Schema(
     },
     qrCodeUrl: {
       type: String,
+    },
+    attendance: {
+      type: Array
     },
     operator: {
       type: String,
