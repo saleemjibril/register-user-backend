@@ -529,7 +529,7 @@ export const recordMeal = async (req, res) => {
     let mealType;
 
     // Determine meal type based on time of day
-    if (currentHour >= 6 && currentHour < 11) {
+    if (currentHour >= 3 && currentHour < 11) {
       mealType = 'breakfast';
     } else if (currentHour >= 11 && currentHour < 16) {
       mealType = 'lunch';
