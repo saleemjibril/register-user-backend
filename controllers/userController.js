@@ -62,7 +62,7 @@ export const createUser = catchAsync(async (req, res, next) => {
 
       // Find the last user with same year and LGA to determine next serial number
       const lastUser = await User.findOne({
-        userId: new RegExp(`ISM/B2-${currentYear}/.*`),
+        userId: new RegExp(`ISM/B3-${currentYear}/.*`),
       })
         .sort({ userId: -1 })
         .session(session);
@@ -75,7 +75,7 @@ export const createUser = catchAsync(async (req, res, next) => {
       }
 
       // Generate the unique ID
-      const userId = `ISM/B2-${currentYear}/${lgaInitials}/${padNumber(
+      const userId = `ISM/B3-${currentYear}/${lgaInitials}/${padNumber(
         serialNumber,
         4
       )}`;
@@ -361,7 +361,11 @@ export const getUsers = catchAsync(async (req, res) => {
 
     filterFields.forEach((field) => {
       if (req.query[field]) {
-        query[field] = req.query[field];
+        // Trim whitespace and create case-insensitive regex
+        const cleanValue = req.query[field?.toLowerCase()].trim();
+        query[field?.toLowerCase()] = {
+          $regex: new RegExp(`^\\s*${cleanValue}\\s*$`, "i"),
+        };
       }
     });
 
