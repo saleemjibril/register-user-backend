@@ -42,12 +42,13 @@ export const createUser = catchAsync(async (req, res, next) => {
         status: "fail",
         message: "Phone number already exists. Please use another",
       });
-    }
+      return    }
     if (existingIdNumber) {
       res.status(400).json({
         status: "fail",
         message: "Id number already exists. Please use another",
       });
+      return;
     }
 
     const session = await mongoose.startSession();
@@ -55,31 +56,33 @@ export const createUser = catchAsync(async (req, res, next) => {
 
     try {
       // Get the current year's last two digits
-      const currentYear = new Date().getFullYear() % 100;
+const currentYear = new Date().getFullYear() % 100;
 
-      // Get LGA initials
-      const lgaInitials = getLGAInitials(req.body.lga);
+// Get LGA initials
+const lgaInitials = getLGAInitials(req.body.lga);
 
-      // Find the last user with same year and LGA to determine next serial number
-      const lastUser = await User.findOne({
-        userId: new RegExp(`ISM/B3-${currentYear}/.*`),
-      })
-        .sort({ userId: -1 })
-        .session(session);
+// Find the last user with same year AND same LGA to determine next serial number
+const lastUser = await User.find({
+  userId: new RegExp(`ISM/B3-${currentYear}/${lgaInitials}/\\d+$`)
+})
+  .sort({ "userId": -1 })
+  .limit(1)
+  .session(session);
 
-      // Calculate next serial number
-      let serialNumber = 1;
-      if (lastUser && lastUser.userId) {
-        const lastSerialStr = lastUser.userId.split("/").pop();
-        serialNumber = parseInt(lastSerialStr) + 1;
-      }
+// Calculate next serial number
+let serialNumber = 1;
+console.log("lastUser", lastUser);
 
-      // Generate the unique ID
-      const userId = `ISM/B3-${currentYear}/${lgaInitials}/${padNumber(
-        serialNumber,
-        4
-      )}`;
+if (lastUser && lastUser.length > 0 && lastUser[0].userId) {
+  const lastSerialStr = lastUser[0].userId.split("/").pop();
+  serialNumber = parseInt(lastSerialStr) + 1;
+}
 
+// Generate the unique ID
+const userId = `ISM/B3-${currentYear}/${lgaInitials}/${padNumber(
+  serialNumber,
+  4
+)}`;
       // Add userId to request body
       const userData = {
         ...req.body,
