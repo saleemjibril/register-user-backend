@@ -71,7 +71,6 @@ const lastUser = await User.find({
 
 // Calculate next serial number
 let serialNumber = 1;
-console.log("lastUser", lastUser);
 
 if (lastUser && lastUser.length > 0 && lastUser[0].userId) {
   const lastSerialStr = lastUser[0].userId.split("/").pop();
