@@ -63,7 +63,7 @@ const lgaInitials = getLGAInitials(req.body.lga);
 
 // Find the last user with same year AND same LGA to determine next serial number
 const lastUser = await User.find({
-  userId: new RegExp(`ISM/B3-${currentYear}/${lgaInitials}/\\d+$`)
+  userId: new RegExp(`ISM/B4-${currentYear}/${lgaInitials}/\\d+$`)
 })
   .sort({ "userId": -1 })
   .limit(1)
@@ -78,7 +78,7 @@ if (lastUser && lastUser.length > 0 && lastUser[0].userId) {
 }
 
 // Generate the unique ID
-const userId = `ISM/B3-${currentYear}/${lgaInitials}/${padNumber(
+const userId = `ISM/B4-${currentYear}/${lgaInitials}/${padNumber(
   serialNumber,
   4
 )}`;
@@ -434,12 +434,24 @@ export const getUsersNumbers = catchAsync(async (req, res) => {
       physicalFitness,
       sortBy = "_id",
       sortOrder = "asc",
+      // Add new date range parameters
+      startDate,
+      endDate,
     } = req.query;
 
     // Base query to ensure qrCodeUrl exists and is not null
     let query = {
       qrCodeUrl: { $exists: true, $ne: null },
     };
+    
+    // Add date range filter if both dates are provided
+    if (startDate && endDate) {
+      // Assuming you have an updatedAt field in your User model
+      query.updatedAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
 
     // Add additional filters
     const filterFields = ["lga", "state"];
@@ -468,6 +480,7 @@ export const getUsersNumbers = catchAsync(async (req, res) => {
       "state",
       "community",
       "disability",
+      "updatedAt", // Add updatedAt to valid sort fields
     ];
 
     const sanitizedSortBy = validSortFields.includes(sortBy) ? sortBy : "_id";
@@ -701,19 +714,31 @@ export const downloadUsersExcel = catchAsync(async (req, res) => {
       religion,
       physicalFitness,
       registeredUsersOnly,
+      startDate,
+      endDate,
     } = req.query;
 
     console.log("registeredUsersOnly", registeredUsersOnly);
 
     // Build query object (reuse your existing query building logic)
 let query;
-    if (registeredUsersOnly === "true") {
+    // if (registeredUsersOnly === "true") {
       query = {
         qrCodeUrl: { $exists: true, $ne: null },
       };
-    } else {
-       query = {};
+    // } else {
+    //    query = {};
+    // }
+
+    // Add date range filter if both dates are provided
+    if (startDate && endDate) {
+      // Assuming you have an updatedAt field in your User model
+      query.updatedAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
     }
+    
     if (searchTerm && searchType) {
       query[searchType] = { $regex: searchTerm, $options: "i" };
     }
@@ -756,9 +781,21 @@ let query;
       { header: "State", key: "state", width: 15 },
       { header: "Lga", key: "lga", width: 20 },
       { header: "Community", key: "community", width: 20 },
+      { header: "Limited", key: "limited", width: 50 },
       { header: "Religion", key: "religion", width: 15 },
       { header: "Disability", key: "disability", width: 10 },
       { header: "Physical Fitness", key: "physicalFitness", width: 15 },
+      { header: "Operator", key: "operator", width: 15 },
+      { header: "District", key: "district", width: 20 },
+      { header: "MSP Type", key: "mspType", width: 20 },
+      { header: "Qualifications", key: "qualification", width: 20 },
+      { header: "Languages Spoken And Written", key: "languagesSpokenAndWritten", width: 20 },
+      { header: "ID Type", key: "idType", width: 20 },
+      { header: "ID Number", key: "idNumber", width: 20 },
+      { header: "Availability", key: "availability", width: 20 },
+      { header: "Pre Existing Health Condition", key: "preExistingHealthCondition", width: 20 },
+      { header: "Nursing Mother", key: "nursingMother", width: 20 },
+      { header: "birth certificate", key: "birthCertificateCheck", width: 50 },
       { header: "Photo", key: "photo", width: 50 },
     ];
 
@@ -774,10 +811,22 @@ let query;
         state: user.state,
         lga: user.lga,
         community: user.community,
+        limited: user.limited,
         religion: user.religion,
         disability: user.disability,
         physicalFitness: user.physicalFitness,
-        photo: user.photo,
+        operator: user.operator,
+        district: user.district,
+        mspType: user.mspType,
+        qualification: user.qualification,
+        languagesSpokenAndWritten: user.languagesSpokenAndWritten,
+        idType: user.idType,
+        idNumber: user.idNumber,
+        availability: user.availability,
+        preExistingHealthCondition: user.preExistingHealthCondition,
+        nursingMother: user.nursingMother,
+        birthCertificateCheck: user.birthCertificateCheck,
+        photo: user.photo
       });
     });
 
