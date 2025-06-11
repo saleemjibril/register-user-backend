@@ -63,7 +63,7 @@ const lgaInitials = getLGAInitials(req.body.lga);
 
 // Find the last user with same year AND same LGA to determine next serial number
 const lastUser = await User.find({
-  userId: new RegExp(`ISM/B4-${currentYear}/${lgaInitials}/\\d+$`)
+  userId: new RegExp(`ISM/B5-${currentYear}/${lgaInitials}/\\d+$`)
 })
   .sort({ "userId": -1 })
   .limit(1)
@@ -78,7 +78,7 @@ if (lastUser && lastUser.length > 0 && lastUser[0].userId) {
 }
 
 // Generate the unique ID
-const userId = `ISM/B4-${currentYear}/${lgaInitials}/${padNumber(
+const userId = `ISM/B5-${currentYear}/${lgaInitials}/${padNumber(
   serialNumber,
   4
 )}`;
