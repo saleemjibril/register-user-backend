@@ -22,6 +22,7 @@ const adminSchema = new mongoose.Schema(
         'food-checker',
         'health',
         'attendance',
+        'tab-checking',
         'admin',
         'super-admin',
       ],

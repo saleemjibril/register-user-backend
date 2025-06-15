@@ -439,10 +439,18 @@ export const getUsersNumbers = catchAsync(async (req, res) => {
       endDate,
     } = req.query;
 
+    console.log("req.query;", req.query);
+    
+
     // Base query to ensure qrCodeUrl exists and is not null
     let query = {
       qrCodeUrl: { $exists: true, $ne: null },
     };
+
+    console.log("yoo",{
+      startDate,endDate
+    });
+    
     
     // Add date range filter if both dates are provided
     if (startDate && endDate) {
@@ -962,6 +970,166 @@ export const recordAttendance = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Error recording attendance",
+      error: error.message,
+    });
+  }
+};
+
+export const checkInTab = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findOne({ _id: userId });
+
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: "User not found" 
+      });
+    }
+
+    // Check if user's latest record is a check-in (meaning they haven't checked out yet)
+    const latestRecord = user.tabChecking?.length > 0 
+      ? user.tabChecking[user.tabChecking.length - 1] 
+      : null;
+
+    if (latestRecord && latestRecord.checkType === "check-in") {
+      return res.status(400).json({
+        success: false,
+        message: "User already has a tablet checked in. Please check out first.",
+      });
+    }
+
+    // Create check-in record
+    const checkInRecord = {
+      checkType: "check-in",
+      timeStamp: new Date(),
+    };
+
+    // Initialize tabChecking array if it doesn't exist
+    if (!user.tabChecking) {
+      user.tabChecking = [];
+    }
+
+    user.tabChecking.push(checkInRecord);
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Tablet checked in successfully",
+      data: checkInRecord
+    });
+
+  } catch (error) {
+    console.error("Error checking in tablet:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error checking in tablet",
+      error: error.message,
+    });
+  }
+};
+
+export const checkOutTab = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findOne({ _id: userId });
+
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: "User not found" 
+      });
+    }
+
+    // Check if user's latest record is a check-in (meaning they can check out)
+    const latestRecord = user.tabChecking?.length > 0 
+      ? user.tabChecking[user.tabChecking.length - 1] 
+      : null;
+
+    if (!latestRecord || latestRecord.checkType !== "check-in") {
+      return res.status(400).json({
+        success: false,
+        message: "No active tablet check-in found. Cannot check out.",
+      });
+    }
+
+    // Create check-out record
+    const checkOutRecord = {
+      checkType: "check-out",
+      timeStamp: new Date(),
+    };
+
+    user.tabChecking.push(checkOutRecord);
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Tablet checked out successfully",
+      data: checkOutRecord
+    });
+
+  } catch (error) {
+    console.error("Error checking out tablet:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error checking out tablet",
+      error: error.message,
+    });
+  }
+};
+
+// Helper function to get current tablet status
+export const getTabletStatus = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findOne({ _id: userId });
+
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: "User not found" 
+      });
+    }
+
+    const tabChecking = user.tabChecking || [];
+    
+    // Get the most recent record
+    const latestRecord = tabChecking.length > 0 
+      ? tabChecking[tabChecking.length - 1] 
+      : null;
+
+    if (!latestRecord) {
+      return res.status(200).json({
+        success: true,
+        status: "no-tablet",
+        message: "No tablet assigned to this user"
+      });
+    }
+
+    if (latestRecord.checkType === "check-in") {
+      return res.status(200).json({
+        success: true,
+        status: "checked-in",
+        message: "Tablet is currently assigned to user",
+        lastCheckIn: latestRecord
+      });
+    } else {
+      return res.status(200).json({
+        success: true,
+        status: "checked-out",
+        message: "Tablet has been returned",
+        lastCheckOut: latestRecord
+      });
+    }
+
+  } catch (error) {
+    console.error("Error getting tablet status:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error getting tablet status",
       error: error.message,
     });
   }

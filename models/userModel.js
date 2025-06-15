@@ -19,7 +19,6 @@ const mealRecordSchema = new mongoose.Schema({
   }
 });
 
-
 const appointmentRecordSchema = new mongoose.Schema({
   complaint: {
     type: String,
@@ -30,15 +29,40 @@ const appointmentRecordSchema = new mongoose.Schema({
   prescriptions: {
     type: Array,
   }
- 
 },
 {
   timestamps: true,
-}
-);
+});
 
-
-
+// Add the tab checking schema
+const tabCheckingSchema = new mongoose.Schema({
+  checkType: {
+    type: String,
+    required: true,
+    enum: ['check-in', 'check-out']
+  },
+  timeStamp: {
+    type: Date,
+    required: true,
+    default: Date.now
+  },
+  // tabletId: {
+  //   type: String,
+  //   default: null
+  // },
+  // assignedBy: {
+  //   type: String,
+  //   default: null
+  // },
+  // condition: {
+  //   type: String,
+  //   default: null
+  // },
+  // notes: {
+  //   type: String,
+  //   default: null
+  // }
+});
 
 const userSchema = new mongoose.Schema(
   {
@@ -209,7 +233,9 @@ const userSchema = new mongoose.Schema(
       default: "no"
     },
     mealRecords: [mealRecordSchema],
-    appointments: [appointmentRecordSchema]
+    appointments: [appointmentRecordSchema],
+    // Add the tabChecking field
+    tabChecking: [tabCheckingSchema]
   },
   {
     timestamps: true,
@@ -226,6 +252,8 @@ userSchema.index({ sex: 1 });
 userSchema.index({ state: 1 });
 userSchema.index({ disability: 1 });
 userSchema.index({ "mealRecords.date": 1 });
+// Add index for tabChecking
+userSchema.index({ "tabChecking.timeStamp": 1 });
 
 const User = mongoose.model("User", userSchema);
 
