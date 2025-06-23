@@ -566,9 +566,7 @@ export const recordMeal = async (req, res) => {
       return res.status(400).json({ message: "Not within meal service hours" });
     }
 
-
     // Find user and update or create meal record
-
     const user = await User.findOne({ _id: userId });
 
     if (!user) {
@@ -603,7 +601,8 @@ export const recordMeal = async (req, res) => {
       todayRecord[mealType] = true;
     }
 
-    await user.save();
+    // Save without running validation on the entire document
+    await user.save({ validateBeforeSave: false });
 
     return res.status(200).json({
       message: `${mealType} recorded successfully`,
@@ -740,11 +739,16 @@ let query;
 
     // Add date range filter if both dates are provided
     if (startDate && endDate) {
+      console.log("date dey");
+      
       // Assuming you have an updatedAt field in your User model
       query.updatedAt = {
         $gte: new Date(startDate),
         $lte: new Date(endDate)
       };
+    }else {
+            console.log("no date");
+
     }
     
     if (searchTerm && searchType) {
