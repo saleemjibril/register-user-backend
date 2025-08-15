@@ -34,36 +34,6 @@ const appointmentRecordSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-// Add the tab checking schema
-const tabCheckingSchema = new mongoose.Schema({
-  checkType: {
-    type: String,
-    required: true,
-    enum: ['check-in', 'check-out']
-  },
-  timeStamp: {
-    type: Date,
-    required: true,
-    default: Date.now
-  },
-  // tabletId: {
-  //   type: String,
-  //   default: null
-  // },
-  // assignedBy: {
-  //   type: String,
-  //   default: null
-  // },
-  // condition: {
-  //   type: String,
-  //   default: null
-  // },
-  // notes: {
-  //   type: String,
-  //   default: null
-  // }
-});
-
 const userSchema = new mongoose.Schema(
   {
     userId: {
@@ -75,145 +45,37 @@ const userSchema = new mongoose.Schema(
     names: {
       type: String,
       required: [true, "Please provide your name"],
-      lowercase: true,
-    },
-    email: {
-      type: String,
-      lowercase: true,
-    },
-    community: {
-      type: String,
-      required: [true, "Please provide your community"],
-      lowercase: true,
-      
-    },
-    limited: {
-      type: String,
-      lowercase: true,
-    },
-    district: {
-      type: String,
-      lowercase: true,
-    },
-    state: {
-      type: String,
-      required: [true, "Please provide your state"],
-      lowercase: true,
-    },
-    mspType: {
-      type: String,
-      required: [true, "Please provide your mspType"],
-      lowercase: true,
-    },
-    lga: {
-      type: String,
-      required: [true, "Please provide your lga"],
-      lowercase: true,
-    },
-    state: {
-      type: String,
-      required: [true, "Please provide your state"],
-      lowercase: true,
-    },
-    phoneNumber: {
-      type: String,
-      required: [true, "Please provide your phone number"],
-      unique: true,
-      sparse: true,
     },
     age: {
       type: String,
       required: [true, "Please provide your age"],
-      lowercase: true,
     },
     sex: {
       type: String,
       required: [true, "Please provide your gender"],
-      lowercase: true,
     },
-    degreeQualifications: {
+    gradeLevel: {
       type: String,
-      lowercase: true,
-    },
-    helperColumnMale: {
-      type: String,
-      lowercase: true,
-    },
-    helperColumnFemale: {
-      type: String,
-      lowercase: true,
-    },
-    languagesSpokenAndWritten: {
-      type: String,
-      required: [true, "Please provide your language written and spoken"],
-      lowercase: true,
+      required: [true, "Please provide your grade level"],
     },
     disability: {
       type: String,
-      lowercase: true,
       default: "no"
     },
-    religion: {
+    disabilityType: {
       type: String,
-      lowercase: true,
     },
-    helperColumnChristianity: {
+    consent: {
       type: String,
-      lowercase: true,
     },
-    helperColumnIslam: {
+    helperColumnMale: {
       type: String,
-      lowercase: true,
     },
-    birthCertificateCheck: {
+    helperColumnFemale: {
       type: String,
-      lowercase: true,
-      default: "no"
-    },
-    idType: {
-      type: String,
-      required: [true, "Please provide your Id type"],
-      lowercase: true,
-    },
-    idNumber: {
-      type: String,
-      required: [true, "Please provide your Id number"],
-      unique: true,
-      sparse: true,
-    },
-    qualification: {
-      type: String,
-      lowercase: true,
-    },
-    physicalFitness: {
-      type: String,
-      required: [true, "Please indicate your physical fitness"],
-      lowercase: true,
-    },
-    availability: {
-      type: String,
-      required: [true, "Please provide your availability"],
-      lowercase: true,
-    },
-    preExistingHealthCondition: {
-      type: String,
-      required: [true, "Please indicate if you have pre existing health conditions"],
-      lowercase: true,
-    },
-    nursingMother: {
-      type: String,
-      lowercase: true,
-      default: "no"
-    },
-    remark: {
-      type: String,
-      lowercase: true,
     },
     photo: {
       type: String,
-    },
-    credentials: {
-      type: Object,
     },
     leftFingerPrint: {
       type: String,
@@ -227,33 +89,36 @@ const userSchema = new mongoose.Schema(
     attendance: {
       type: Array
     },
-    operator: {
-      type: String,
-      lowercase: true,
-      default: "no"
-    },
     mealRecords: [mealRecordSchema],
-    appointments: [appointmentRecordSchema],
-    // Add the tabChecking field
-    tabChecking: [tabCheckingSchema]
+    appointments: [appointmentRecordSchema]
   },
   {
     timestamps: true,
   }
 );
 
-// Add to userModel.js
-userSchema.index({ userId: 1 });
+// Basic indexes for the simplified schema
 userSchema.index({ names: 1 });
-userSchema.index({ email: 1 });
-userSchema.index({ phoneNumber: 1 });
 userSchema.index({ age: 1 });
 userSchema.index({ sex: 1 });
-userSchema.index({ state: 1 });
 userSchema.index({ disability: 1 });
+
+// Text index for search functionality
+userSchema.index({ 
+  names: "text"
+});
+
+// Compound indexes
+userSchema.index({ sex: 1, disability: 1 });
+userSchema.index({ age: 1, names: 1 });
+
+// Timestamps indexes
+userSchema.index({ createdAt: -1 });
+userSchema.index({ updatedAt: -1 });
+
+// Indexes for nested arrays
 userSchema.index({ "mealRecords.date": 1 });
-// Add index for tabChecking
-userSchema.index({ "tabChecking.timeStamp": 1 });
+userSchema.index({ "appointments.createdAt": -1 });
 
 const User = mongoose.model("User", userSchema);
 

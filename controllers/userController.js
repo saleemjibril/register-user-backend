@@ -4,7 +4,7 @@ import ExcelJS from "exceljs";
 import mongoose from "mongoose";
 
 // Helper function to get initials from LGA name
-const getLGAInitials = (lga) => {
+const getInitials = (lga) => {
   return lga
     .split(" ")
     .map((word) => word[0])
@@ -21,35 +21,7 @@ export const createUser = catchAsync(async (req, res, next) => {
   try {
     // Start a session for atomic operations
 
-    const { email, phoneNumber, idNumber } = req.body;
 
-    const existingPhoneNumber = await User.findOne({
-      phoneNumber,
-    });
-    // if(email?.trim()?.length > 0) {
-    //   const existingEmail = await User.findOne({ email: email.toLowerCase() });
-    //   if (existingEmail) {
-    //     res.status(400).json({
-    //       status: "fail",
-    //       message: "Email already exists. Please use another",
-    //     });
-    //   }
-    // }
-    const existingIdNumber = await User.findOne({ idNumber });
-
-    if (existingPhoneNumber) {
-      res.status(400).json({
-        status: "fail",
-        message: "Phone number already exists. Please use another",
-      });
-      return    }
-    if (existingIdNumber) {
-      res.status(400).json({
-        status: "fail",
-        message: "Id number already exists. Please use another",
-      });
-      return;
-    }
 
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -58,12 +30,12 @@ export const createUser = catchAsync(async (req, res, next) => {
       // Get the current year's last two digits
 const currentYear = new Date().getFullYear() % 100;
 
-// Get LGA initials
-const lgaInitials = getLGAInitials(req.body.lga);
+// Get  initials
+const initials = getInitials(req.body.names);
 
-// Find the last user with same year AND same LGA to determine next serial number
+// Find the last user with same year AND same name to determine next serial number
 const lastUser = await User.find({
-  userId: new RegExp(`ISM/B5-${currentYear}/${lgaInitials}/\\d+$`)
+  userId: new RegExp(`CH/B1-${currentYear}/${initials}/\\d+$`)
 })
   .sort({ "userId": -1 })
   .limit(1)
@@ -78,7 +50,7 @@ if (lastUser && lastUser.length > 0 && lastUser[0].userId) {
 }
 
 // Generate the unique ID
-const userId = `ISM/B5-${currentYear}/${lgaInitials}/${padNumber(
+const userId = `CH/B1-${currentYear}/${initials}/${padNumber(
   serialNumber,
   4
 )}`;
@@ -116,60 +88,193 @@ const userId = `ISM/B5-${currentYear}/${lgaInitials}/${padNumber(
 });
 
 export const updateUser = catchAsync(async (req, res) => {
-  if (req.body.email) {
-    const existingUser = await User.findOne({
-      email: req.body.email,
-      _id: { $ne: req.params.id },
-    });
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
 
-    if (existingUser) {
+    // Validate user ID format
+    if (!id || !id.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({
-        status: "fail",
-        message: "Email is already in use by another user",
+        error: "Invalid user ID",
+        message: "Please provide a valid user ID",
       });
     }
-  }
-  if (req.body.phoneNumber) {
-    const existingUser = await User.findOne({
-      phoneNumber: req.body.phoneNumber,
-      _id: { $ne: req.params.id },
-    });
 
-    if (existingUser) {
-      return res.status(400).json({
-        status: "fail",
-        message: "Phone number is already in use by another user",
+    // Check if user exists
+    const existingUser = await User.findById(id);
+    if (!existingUser) {
+      return res.status(404).json({
+        error: "User not found",
+        message: "No user found with the provided ID",
       });
     }
-  }
 
-  if (req.body.idNumber) {
-    const existingUser = await User.findOne({
-      idNumber: req.body.idNumber,
-      _id: { $ne: req.params.id },
+    // Define fields that are not allowed to be updated
+    const protectedFields = ['_id', '__v', 'createdAt'];
+    const sanitizedUpdateData = { ...updateData };
+    
+    // Remove protected fields
+    protectedFields.forEach(field => {
+      delete sanitizedUpdateData[field];
     });
 
-    if (existingUser) {
-      return res.status(400).json({
-        status: "fail",
-        message: "Phone number is already in use by another user",
+    // Set updatedAt timestamp
+    sanitizedUpdateData.updatedAt = new Date();
+
+    // Validate unique fields concurrently for better performance
+    const uniqueFieldChecks = [];
+
+
+    if (sanitizedUpdateData.userId && sanitizedUpdateData.userId !== existingUser.userId) {
+      uniqueFieldChecks.push({
+        field: 'userId',
+        value: sanitizedUpdateData.userId.trim(),
+        query: { 
+          userId: sanitizedUpdateData.userId.trim(),
+          _id: { $ne: id }
+        }
       });
     }
+
+    // Check for unique field conflicts
+    if (uniqueFieldChecks.length > 0) {
+      const conflictChecks = await Promise.all(
+        uniqueFieldChecks.map(async (check) => {
+          const conflictUser = await User.findOne(check.query);
+          return {
+            field: check.field,
+            hasConflict: !!conflictUser,
+            conflictUserId: conflictUser?.userId || null
+          };
+        })
+      );
+
+      const conflicts = conflictChecks.filter(check => check.hasConflict);
+      
+      if (conflicts.length > 0) {
+        const conflictMessages = conflicts.map(conflict => {
+          const fieldNames = {
+            userId: 'User ID'
+          };
+          return `${fieldNames[conflict.field]} is already in use by another user`;
+        });
+
+        return res.status(409).json({
+          error: "Duplicate field values",
+          message: conflictMessages.join('. '),
+          conflicts: conflicts.map(c => ({
+            field: c.field,
+            conflictUserId: c.conflictUserId
+          }))
+        });
+      }
+    }
+
+
+
+
+
+    // Sanitize text fields
+    const textFields = ['names', 'state', 'lga', 'community', 'religion', 'operator', 'district'];
+    textFields.forEach(field => {
+      if (sanitizedUpdateData[field]) {
+        sanitizedUpdateData[field] = sanitizedUpdateData[field].trim();
+      }
+    });
+
+    // Validate age if provided
+    if (sanitizedUpdateData.age !== undefined) {
+      const age = parseInt(sanitizedUpdateData.age);
+      if (isNaN(age) || age < 0 || age > 150) {
+        return res.status(400).json({
+          error: "Invalid age",
+          message: "Age must be a number between 0 and 150",
+        });
+      }
+      sanitizedUpdateData.age = age;
+    }
+
+    // Use findByIdAndUpdate with proper options
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      sanitizedUpdateData,
+      {
+        new: true,
+        runValidators: true,
+        context: 'query' // Important for mongoose validators
+      }
+    );
+
+    // Use aggregation to get formatted response data
+    const [userResponse] = await User.aggregate([
+      { $match: { _id: updatedUser._id } },
+      {
+        $project: {
+          userId: 1, names: 1, gradeLevel: 1, disabilityType: 1, age: 1,
+          sex: 1, disability: 1, consent: 1,
+          religion: 1, physicalFitness: 1, operator: 1, photo: 1,
+          createdAt: 1, updatedAt: 1,
+        }
+      }
+    ]);
+
+    // Prepare response with metadata
+    const response = {
+      user: userResponse,
+      metadata: {
+        userId: userResponse.userId,
+        lastUpdated: userResponse.updatedAt,
+        fieldsUpdated: Object.keys(sanitizedUpdateData).filter(key => key !== 'updatedAt'),
+        hasQRCode: !!userResponse.qrCodeUrl
+      }
+    };
+
+    res.status(200).json({
+      message: "User updated successfully",
+      data: response
+    });
+
+  } catch (err) {
+    // Handle specific MongoDB errors
+    if (err.name === 'ValidationError') {
+      const validationErrors = Object.values(err.errors).map(error => ({
+        field: error.path,
+        message: error.message
+      }));
+
+      return res.status(400).json({
+        error: "Validation failed",
+        message: "One or more fields failed validation",
+        validationErrors
+      });
+    }
+
+    if (err.name === 'CastError') {
+      return res.status(400).json({
+        error: "Invalid data format",
+        message: "One or more fields have invalid format",
+      });
+    }
+
+    if (err.code === 11000) {
+      const field = Object.keys(err.keyPattern)[0];
+      return res.status(409).json({
+        error: "Duplicate value",
+        message: `${field} already exists in the system`,
+      });
+    }
+
+    // General error response
+    res.status(500).json({
+      error: "Failed to update user",
+      message: err.message,
+    });
   }
-
-  const updated = await User.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true,
-  });
-
-  res.status(200).json({
-    status: "success",
-    message: "User updated successfully",
-    data: updated,
-  });
 });
 
 export const getUser = catchAsync(async (req, res) => {
+  console.log("got called");
+  
   try {
     const event = await User.findById(req.params.id);
     res.status(200).json(event);
@@ -183,143 +288,123 @@ export const getUser = catchAsync(async (req, res) => {
 
 export const getUserByParams = catchAsync(async (req, res) => {
   try {
-    const searchTerm = req.query.searchTerm;
+    const {
+      searchTerm,
+      includeFullProfile = false,
+      includeQRCodeOnly = false,
+    } = req.query;
 
+    // Validate input
     if (!searchTerm) {
       return res.status(400).json({
-        message: "Please provide a search term (email, phone number or userId)",
+        error: "Missing required parameter",
+        message: "Please provide a search term (email, phone number, or userId)",
       });
     }
 
-    // Search for user with either email or phone number
-    const user = await User.findOne({
+    // Sanitize search term
+    const sanitizedSearchTerm = searchTerm.toString().trim();
+    
+    if (sanitizedSearchTerm.length === 0) {
+      return res.status(400).json({
+        error: "Invalid search term",
+        message: "Search term cannot be empty",
+      });
+    }
+
+    // Build query with case-insensitive search
+    let query = {
       $or: [
-        { email: searchTerm },
-        { phoneNumber: searchTerm },
-        { userId: searchTerm },
+        // { email: { $regex: `^${sanitizedSearchTerm}$`, $options: "i" } },
+        // { phoneNumber: sanitizedSearchTerm },
+        { userId: sanitizedSearchTerm },
       ],
-    });
+    };
+
+    // Add QR code filter if requested
+    if (includeQRCodeOnly === "true") {
+      query.qrCodeUrl = { $exists: true, $ne: null };
+    }
+
+    // Use aggregation for consistent data handling
+    const results = await User.aggregate([
+      { $match: query },
+      {
+        $project: {
+          userId: 1, names: 1, gradeLevel: 1, disabilityType: 1, age: 1,
+                sex: 1, disability: 1, consent: 1, qrCodeUrl: 1,
+                religion: 1, physicalFitness: 1, operator: 1, photo: 1,
+                createdAt: 1, updatedAt: 1,
+        }
+        
+      },
+      { $limit: 1 } // Ensure we only get one result
+    ]);
+
+    const user = results[0];
 
     if (!user) {
       return res.status(404).json({
-        message: "No user found with this user id, email or phone number",
+        error: "User not found",
+        message: "No user found with the provided email, phone number, or user ID",
+        searchTerm: sanitizedSearchTerm,
       });
     }
 
+    // Prepare response with metadata
+    const response = {
+      user,
+      metadata: {
+        searchTerm: sanitizedSearchTerm,
+        fullProfile: includeFullProfile === "true",
+        hasQRCode: !!user.qrCodeUrl,
+        lastUpdated: user.updatedAt,
+      }
+    };
+
+    // Add search method used for debugging/analytics
+    if (user.email && user.email.toLowerCase() === sanitizedSearchTerm.toLowerCase()) {
+      response.metadata.searchMethod = "email";
+    } else if (user.phoneNumber === sanitizedSearchTerm) {
+      response.metadata.searchMethod = "phone";
+    } else if (user.userId === sanitizedSearchTerm) {
+      response.metadata.searchMethod = "userId";
+    }
+
+    // res.status(200).json(response);
     res.status(200).json(user);
+
   } catch (err) {
-    console.log("USER FETCH ERROR ----> ", err);
-    res.status(400).json({
-      error: err.message,
+    // Handle specific MongoDB errors
+    if (err.name === 'CastError') {
+      return res.status(400).json({
+        error: "Invalid search parameter format",
+        message: "The provided search term format is invalid",
+      });
+    }
+
+    // Handle validation errors
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({
+        error: "Validation error",
+        message: err.message,
+      });
+    }
+
+    // General error response
+    res.status(500).json({
+      error: "Failed to fetch user",
+      message: err.message,
     });
   }
 });
 
-// export const getUsers = catchAsync(async (req, res) => {
-//   try {
-//     let events = await User.find({})
-//     res.status(200).json(
-//       [...events]
-//     );
-//   } catch (err) {
-//     console.log("EVENT FETCH ERROR ----> ", err);
-//     res.status(400).json({
-//       err: err.message,
-//     });
-//   }
-// });
 
-// const ITEMS_PER_PAGE = 20;
 
-// export const getUsers = catchAsync(async (req, res) => {
-//   try {
-//     const { searchTerm, searchType, page = 1 } = req.query;
-//     let query = {};
-
-//     if (searchTerm && searchType) {
-//       query[searchType] = {
-//         $regex: searchTerm,
-//         $options: 'i'
-//       };
-//     }
-
-//     // Calculate skip value for pagination
-//     const skip = (parseInt(page) - 1) * ITEMS_PER_PAGE;
-
-//     // Get total count for pagination
-//     const totalUsers = await User.countDocuments(query);
-
-//     // Get paginated results
-//     const users = await User.find(query)
-//       .skip(skip)
-//       .limit(ITEMS_PER_PAGE)
-//       .sort({ createdAt: -1 }); // Optional: sort by creation date
-
-//     res.status(200).json({
-//       users,
-//       pagination: {
-//         currentPage: parseInt(page),
-//         totalPages: Math.ceil(totalUsers / ITEMS_PER_PAGE),
-//         totalItems: totalUsers,
-//         itemsPerPage: ITEMS_PER_PAGE
-//       }
-//     });
-//   } catch (err) {
-//     console.log("USER FETCH ERROR ----> ", err);
-//     res.status(400).json({
-//       err: err.message,
-//     });
-//   }
-// });
 
 const ITEMS_PER_PAGE = 20;
-const buildQuery = (params) => {
-  const {
-    searchTerm,
-    searchType,
-    disability,
-    sex,
-    state,
-    lga,
-    community,
-    religion,
-    physicalFitness,
-  } = params;
-
-  const query = {};
-
-  // Use $and for better index utilization
-  const conditions = [];
-
-  // Add search condition if present
-  if (searchTerm && searchType) {
-    conditions.push({
-      [searchType]: {
-        $regex: searchTerm,
-        $options: "i",
-      },
-    });
-  }
-
-  // Add filter conditions
-  if (disability) conditions.push({ disability });
-  if (sex) conditions.push({ sex });
-  if (state) conditions.push({ state });
-  if (lga) conditions.push({ lga });
-  if (community) conditions.push({ community });
-  if (religion) conditions.push({ religion });
-  if (physicalFitness) conditions.push({ physicalFitness });
-
-  if (conditions.length > 0) {
-    query.$and = conditions;
-  }
-
-  return query;
-};
 
 export const getUsers = catchAsync(async (req, res) => {
-  console.log("request!");
-
   try {
     const {
       searchTerm,
@@ -327,94 +412,94 @@ export const getUsers = catchAsync(async (req, res) => {
       page = 1,
       disability,
       sex,
-      state,
-      lga,
-      community,
       religion,
       physicalFitness,
+      operator,
       sortBy = "_id",
       sortOrder = "asc",
     } = req.query;
 
-    // Build dynamic query object
-    let query = {};
+    // Validate and sanitize inputs
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const skipCount = (pageNum - 1) * ITEMS_PER_PAGE;
 
-    // Add search term if provided
-    if (searchTerm && searchType) {
-      query[searchType] = {
-        $regex: searchTerm,
-        $options: "i",
-      };
-    }
-
-    console.log("is this the place", query);
-
-    // Add filters
-    const filterFields = [
-      "disability",
-      "sex",
-      "state",
-      "lga",
-      "community",
-      "religion",
-      "physicalFitness",
-      "operator"
-    ];
-
-    filterFields.forEach((field) => {
-      if (req.query[field]) {
-        // Trim whitespace and create case-insensitive regex
-        const cleanValue = req.query[field?.toLowerCase()].trim();
-        query[field?.toLowerCase()] = {
-          $regex: new RegExp(`^\\s*${cleanValue}\\s*$`, "i"),
-        };
-      }
-    });
-
-    // Validate sortBy to prevent injection
     const validSortFields = [
-      "_id",
-      "userId",
-      "names",
-      "email",
-      "phoneNumber",
-      "age",
-      "sex",
-      "state",
-      "community",
-      "disability",
+      "_id", "userId", "names", "gradeLevel", "disabilityType", 
+      "age", "sex", "disability", "createdAt", "updatedAt"
     ];
 
     const sanitizedSortBy = validSortFields.includes(sortBy) ? sortBy : "_id";
     const sanitizedSortOrder = sortOrder === "desc" ? -1 : 1;
 
-    // Calculate pagination
-    const skip = (parseInt(page) - 1) * ITEMS_PER_PAGE;
+    // Build query
+    let query = {};
+    let useTextSearch = false;
 
-    // Get total count for pagination
-    const totalUsers = await User.countDocuments(query);
+    if (searchTerm && searchType) {
+      if (['names', 'gradeLevel', 'disabilityType', 'userId'].includes(searchType)) {
+        query.$text = { $search: searchTerm };
+        useTextSearch = true;
+      } else {
+        query[searchType] = { $regex: searchTerm, $options: "i" };
+      }
+    }
 
-    console.log("query for users API", query);
+    // Add filters with direct matching
+    const filterFields = ["disability", "sex", "religion", "physicalFitness", "operator"];
+    
+    filterFields.forEach((field) => {
+      const value = req.query[field];
+      if (value) {
+        query[field] = value.toLowerCase().trim();
+      }
+    });
 
-    // Get paginated and sorted results
-    const users = await User.find(query)
-      .sort({ [sanitizedSortBy]: sanitizedSortOrder })
-      .skip(skip)
-      .limit(ITEMS_PER_PAGE);
+    // Use aggregation for optimal performance
+    const results = await User.aggregate([
+      { $match: query },
+      {
+        $facet: {
+          users: [
+            ...(useTextSearch ? [{ $addFields: { score: { $meta: "textScore" } } }] : []),
+            { 
+              $sort: useTextSearch && sortBy === 'relevance' 
+                ? { score: { $meta: "textScore" } }
+                : { [sanitizedSortBy]: sanitizedSortOrder }
+            },
+            { $skip: skipCount },
+            { $limit: ITEMS_PER_PAGE },
+            {
+              $project: {
+                userId: 1, names: 1, gradeLevel: 1, disabilityType: 1, age: 1,
+                sex: 1, disability: 1, photo: 1,
+                createdAt: 1, updatedAt: 1,
+                ...(useTextSearch ? { score: 1 } : {})
+              }
+            }
+          ],
+          totalCount: [{ $count: "count" }]
+        }
+      }
+    ]);
+
+    const users = results[0].users || [];
+    const totalUsers = results[0].totalCount[0]?.count || 0;
 
     res.status(200).json({
       users,
       pagination: {
-        currentPage: parseInt(page),
+        currentPage: pageNum,
         totalPages: Math.ceil(totalUsers / ITEMS_PER_PAGE),
         totalItems: totalUsers,
         itemsPerPage: ITEMS_PER_PAGE,
       },
+      ...(useTextSearch ? { searchMetadata: { textSearchUsed: true, searchTerm } } : {})
     });
+
   } catch (err) {
-    console.log("USER FETCH ERROR ----> ", err);
     res.status(400).json({
-      err: err.message,
+      error: "Failed to fetch users",
+      message: err.message,
     });
   }
 });
@@ -432,95 +517,120 @@ export const getUsersNumbers = catchAsync(async (req, res) => {
       community,
       religion,
       physicalFitness,
+      operator,
       sortBy = "_id",
       sortOrder = "asc",
-      // Add new date range parameters
       startDate,
       endDate,
     } = req.query;
 
-    console.log("req.query;", req.query);
-    
+    // Validate and sanitize inputs
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const skipCount = (pageNum - 1) * ITEMS_PER_PAGE;
 
-    // Base query to ensure qrCodeUrl exists and is not null
-    let query = {
-      qrCodeUrl: { $exists: true, $ne: null },
-    };
-
-    console.log("yoo",{
-      startDate,endDate
-    });
-    
-    
-    // Add date range filter if both dates are provided
-    if (startDate && endDate) {
-      // Assuming you have an updatedAt field in your User model
-      query.updatedAt = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
-      };
-    }
-
-    // Add additional filters
-    const filterFields = ["lga", "state"];
-
-    console.log("req.query", req.query);
-
-    filterFields.forEach((field) => {
-      if (req.query[field]) {
-        // Trim whitespace and create case-insensitive regex
-        const cleanValue = req.query[field?.toLowerCase()].trim();
-        query[field?.toLowerCase()] = {
-          $regex: new RegExp(`^\\s*${cleanValue}\\s*$`, "i"),
-        };
-      }
-    });
-
-    // Validate sortBy to prevent injection
     const validSortFields = [
-      "_id",
-      "userId",
-      "names",
-      "email",
-      "phoneNumber",
-      "age",
-      "sex",
-      "state",
-      "community",
-      "disability",
-      "updatedAt", // Add updatedAt to valid sort fields
+      "_id", "userId", "names", "gradeLevel", "disabilityType", 
+      "age", "sex", "disability", "createdAt", "updatedAt"
     ];
 
     const sanitizedSortBy = validSortFields.includes(sortBy) ? sortBy : "_id";
     const sanitizedSortOrder = sortOrder === "desc" ? -1 : 1;
 
-    const skip = (parseInt(page) - 1) * ITEMS_PER_PAGE;
+    // Build base query - users with QR codes
+    let query = {
+      qrCodeUrl: { $exists: true, $ne: null },
+    };
+    let useTextSearch = false;
 
-    console.log("query getUsersNumbers", query);
+    // Add search functionality
+    if (searchTerm && searchType) {
+      if (['names', 'userId'].includes(searchType)) {
+        query.$text = { $search: searchTerm };
+        useTextSearch = true;
+      } else if (validSortFields.includes(searchType)) {
+        query[searchType] = { $regex: searchTerm, $options: "i" };
+      }
+    }
 
-    // Count filtered users with qrCodeUrl plus any additional filters
-    const filteredUsers = await User.countDocuments(query);
+    // Add date range filter with proper validation
+    // if (startDate && endDate) {
+    //   const start = new Date(startDate);
+    //   const end = new Date(endDate);
+      
+    //   if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+    //     // Set end date to end of day for inclusive range
+    //     end.setHours(23, 59, 59, 999);
+        
+    //     query.updatedAt = {
+    //       $gte: start,
+    //       $lte: end
+    //     };
+    //   }
+    // }
 
-    // Get paginated and sorted results
-    const users = await User.find(query)
-      .sort({ [sanitizedSortBy]: sanitizedSortOrder })
-      .skip(skip)
-      .limit(ITEMS_PER_PAGE);
+    // Add filters with proper sanitization
+    const filterFields = ["disability", "sex"];
+    
+    filterFields.forEach((field) => {
+      const value = req.query[field];
+      if (value) {
+        query[field] = value.toLowerCase().trim();
+      }
+    });
+
+    // Use aggregation for optimal performance
+    const results = await User.aggregate([
+      { $match: query },
+      {
+        $facet: {
+          users: [
+            ...(useTextSearch ? [{ $addFields: { score: { $meta: "textScore" } } }] : []),
+            { 
+              $sort: useTextSearch && sortBy === 'relevance' 
+                ? { score: { $meta: "textScore" } }
+                : { [sanitizedSortBy]: sanitizedSortOrder }
+            },
+            { $skip: skipCount },
+            { $limit: ITEMS_PER_PAGE },
+            {
+              $project: {
+                userId: 1, names: 1, gradeLevel: 1, disabilityType: 1, age: 1,
+                sex: 1, disability: 1, photo: 1,
+                createdAt: 1, updatedAt: 1,
+                ...(useTextSearch ? { score: 1 } : {})
+              }
+            }
+          ],
+          totalCount: [{ $count: "count" }]
+        }
+      }
+    ]);
+
+    const users = results[0].users || [];
+    const totalUsers = results[0].totalCount[0]?.count || 0;
 
     res.status(200).json({
       users,
-      filteredUsers,
+      filteredUsers: totalUsers, // Keep your existing field name for backward compatibility
       pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(filteredUsers / ITEMS_PER_PAGE),
-        totalItems: filteredUsers,
+        currentPage: pageNum,
+        totalPages: Math.ceil(totalUsers / ITEMS_PER_PAGE),
+        totalItems: totalUsers,
         itemsPerPage: ITEMS_PER_PAGE,
       },
+      ...(useTextSearch ? { searchMetadata: { textSearchUsed: true, searchTerm } } : {}),
+      ...(startDate && endDate ? { 
+        dateRange: { 
+          startDate: new Date(startDate).toISOString(), 
+          endDate: new Date(endDate).toISOString() 
+        } 
+      } : {})
     });
+
   } catch (err) {
-    console.log("USER FETCH ERROR ----> ", err);
     res.status(400).json({
-      err: err.message,
+      error: "Failed to fetch users with QR codes",
+      message: err.message,
     });
   }
 });
@@ -709,6 +819,8 @@ export const getDailyMealTotals = async (req, res) => {
 };
 
 export const downloadUsersExcel = catchAsync(async (req, res) => {
+  console.log("download");
+  
   try {
     const {
       searchTerm,
@@ -720,69 +832,107 @@ export const downloadUsersExcel = catchAsync(async (req, res) => {
       community,
       religion,
       physicalFitness,
-      registeredUsersOnly,
+      operator,
+      registeredUsersOnly = "true",
       startDate,
       endDate,
+      sortBy = "_id",
+      sortOrder = "asc",
     } = req.query;
 
-    console.log("registeredUsersOnly", registeredUsersOnly);
-
-    // Build query object (reuse your existing query building logic)
-let query;
-    // if (registeredUsersOnly === "true") {
-      query = {
-        qrCodeUrl: { $exists: true, $ne: null },
-      };
-    // } else {
-    //    query = {};
-    // }
-
-    // Add date range filter if both dates are provided
-    if (startDate && endDate) {
-      console.log("date dey");
-      
-      // Assuming you have an updatedAt field in your User model
-      query.updatedAt = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
-      };
-    }else {
-            console.log("no date");
-
-    }
-    
-    if (searchTerm && searchType) {
-      query[searchType] = { $regex: searchTerm, $options: "i" };
-    }
-
-    const filterFields = [
-      "disability",
-      "sex",
-      "state",
-      "lga",
-      "community",
-      "religion",
-      "physicalFitness",
+    // Validate sort parameters
+    const validSortFields = [
+      "_id", "userId", "names", "email", "phoneNumber", 
+      "age", "sex", "state", "lga", "community", "disability", 
+      "religion", "physicalFitness", "operator", "createdAt", "updatedAt"
     ];
 
-    filterFields.forEach((field) => {
-      if (req.query[field]) {
-        // Trim whitespace and create case-insensitive regex
-        const cleanValue = req.query[field?.toLowerCase()].trim();
-        query[field?.toLowerCase()] = {
-          $regex: new RegExp(`^\\s*${cleanValue}\\s*$`, "i"),
+    const sanitizedSortBy = validSortFields.includes(sortBy) ? sortBy : "_id";
+    const sanitizedSortOrder = sortOrder === "desc" ? -1 : 1;
+
+    // Build base query
+    let query = {};
+    let useTextSearch = false;
+
+    // Apply registered users filter
+    if (registeredUsersOnly === "true") {
+      query.qrCodeUrl = { $exists: true, $ne: null };
+    }
+
+    // Add search functionality
+    if (searchTerm && searchType) {
+      if (['names', 'email', 'phoneNumber', 'userId'].includes(searchType)) {
+        query.$text = { $search: searchTerm };
+        useTextSearch = true;
+      } else if (validSortFields.includes(searchType)) {
+        query[searchType] = { $regex: searchTerm, $options: "i" };
+      }
+    }
+
+    // Add date range filter with proper validation
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        // Set end date to end of day for inclusive range
+        end.setHours(23, 59, 59, 999);
+        
+        query.updatedAt = {
+          $gte: start,
+          $lte: end
         };
+      }
+    }
+
+    // Add filters with proper sanitization
+    const filterFields = ["disability", "sex", "state", "lga", "community", "religion", "physicalFitness", "operator"];
+    
+    filterFields.forEach((field) => {
+      const value = req.query[field];
+      if (value) {
+        query[field] = value.toLowerCase().trim();
       }
     });
 
-    // Get all matching users without pagination
-    const users = await User.find(query).lean(); // .lean() for better performance
+    // Use aggregation for consistent query handling and sorting
+    const results = await User.aggregate([
+      { $match: query },
+      ...(useTextSearch ? [{ $addFields: { score: { $meta: "textScore" } } }] : []),
+      { 
+        $sort: useTextSearch && sortBy === 'relevance' 
+          ? { score: { $meta: "textScore" } }
+          : { [sanitizedSortBy]: sanitizedSortOrder }
+      },
+      {
+        $project: {
+          userId: 1, names: 1, email: 1, phoneNumber: 1, age: 1,
+          sex: 1, state: 1, lga: 1, community: 1, disability: 1,
+          religion: 1, physicalFitness: 1, operator: 1, photo: 1,
+          limited: 1, district: 1, mspType: 1, qualification: 1,
+          languagesSpokenAndWritten: 1, idType: 1, idNumber: 1,
+          availability: 1, preExistingHealthCondition: 1, nursingMother: 1,
+          birthCertificateCheck: 1
+        }
+      }
+    ]);
+
+    // console.log("the results", results);
+    
+
+    // Validate that we have users to export
+    if (!results || results.length === 0) {
+      return res.status(404).json({
+        error: "No users found matching the specified criteria",
+        message: "Please adjust your filters and try again"
+      });
+    }
 
     // Create Excel workbook
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Users");
 
-    // Define columns
+    // Define columns with proper formatting
     worksheet.columns = [
       { header: "User ID", key: "userId", width: 15 },
       { header: "Name", key: "names", width: 30 },
@@ -791,7 +941,7 @@ let query;
       { header: "Age", key: "age", width: 10 },
       { header: "Gender", key: "sex", width: 10 },
       { header: "State", key: "state", width: 15 },
-      { header: "Lga", key: "lga", width: 20 },
+      { header: "LGA", key: "lga", width: 20 },
       { header: "Community", key: "community", width: 20 },
       { header: "Limited", key: "limited", width: 50 },
       { header: "Religion", key: "religion", width: 15 },
@@ -800,70 +950,113 @@ let query;
       { header: "Operator", key: "operator", width: 15 },
       { header: "District", key: "district", width: 20 },
       { header: "MSP Type", key: "mspType", width: 20 },
-      { header: "Qualifications", key: "qualification", width: 20 },
-      { header: "Languages Spoken And Written", key: "languagesSpokenAndWritten", width: 20 },
+      { header: "Qualifications", key: "qualification", width: 30 },
+      { header: "Languages Spoken And Written", key: "languagesSpokenAndWritten", width: 35 },
       { header: "ID Type", key: "idType", width: 20 },
       { header: "ID Number", key: "idNumber", width: 20 },
       { header: "Availability", key: "availability", width: 20 },
-      { header: "Pre Existing Health Condition", key: "preExistingHealthCondition", width: 20 },
+      { header: "Pre Existing Health Condition", key: "preExistingHealthCondition", width: 35 },
       { header: "Nursing Mother", key: "nursingMother", width: 20 },
-      { header: "birth certificate", key: "birthCertificateCheck", width: 50 },
+      { header: "Birth Certificate", key: "birthCertificateCheck", width: 20 },
       { header: "Photo", key: "photo", width: 50 },
+      // { header: "QR Code URL", key: "qrCodeUrl", width: 50 },
+      // { header: "Created Date", key: "createdAt", width: 20 },
+      // { header: "Updated Date", key: "updatedAt", width: 20 },
     ];
 
-    // Add rows
-    users.forEach((user) => {
+    // Add rows with proper data handling
+    results.forEach((user) => {
       worksheet.addRow({
-        userId: user.userId,
-        names: user.names,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        age: user.age,
-        sex: user.sex,
-        state: user.state,
-        lga: user.lga,
-        community: user.community,
-        limited: user.limited,
-        religion: user.religion,
-        disability: user.disability,
-        physicalFitness: user.physicalFitness,
-        operator: user.operator,
-        district: user.district,
-        mspType: user.mspType,
-        qualification: user.qualification,
-        languagesSpokenAndWritten: user.languagesSpokenAndWritten,
-        idType: user.idType,
-        idNumber: user.idNumber,
-        availability: user.availability,
-        preExistingHealthCondition: user.preExistingHealthCondition,
-        nursingMother: user.nursingMother,
-        birthCertificateCheck: user.birthCertificateCheck,
-        photo: user.photo
+        userId: user.userId || '',
+        names: user.names || '',
+        email: user.email || '',
+        phoneNumber: user.phoneNumber || '',
+        age: user.age || '',
+        sex: user.sex || '',
+        state: user.state || '',
+        lga: user.lga || '',
+        community: user.community || '',
+        limited: user.limited || '',
+        religion: user.religion || '',
+        disability: user.disability || '',
+        physicalFitness: user.physicalFitness || '',
+        operator: user.operator || '',
+        district: user.district || '',
+        mspType: user.mspType || '',
+        qualification: Array.isArray(user.qualification) ? user.qualification.join(', ') : (user.qualification || ''),
+        languagesSpokenAndWritten: Array.isArray(user.languagesSpokenAndWritten) ? user.languagesSpokenAndWritten.join(', ') : (user.languagesSpokenAndWritten || ''),
+        idType: user.idType || '',
+        idNumber: user.idNumber || '',
+        availability: user.availability || '',
+        preExistingHealthCondition: user.preExistingHealthCondition || '',
+        nursingMother: user.nursingMother || '',
+        birthCertificateCheck: user.birthCertificateCheck || '',
+        photo: user.photo || '',
+        // qrCodeUrl: user.qrCodeUrl || '',
+        // createdAt: user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '',
+        // updatedAt: user.updatedAt ? new Date(user.updatedAt).toLocaleDateString() : '',
       });
     });
 
     // Style the header row
-    worksheet.getRow(1).font = { bold: true };
-    worksheet.getRow(1).fill = {
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = {
       type: "pattern",
       pattern: "solid",
-      fgColor: { argb: "FFE0E0E0" },
+      fgColor: { argb: "FF4472C4" },
     };
+    headerRow.height = 20;
+
+    // Auto-fit columns and add borders
+    worksheet.columns.forEach((column, index) => {
+      const columnLetter = String.fromCharCode(65 + index);
+      const columnCells = worksheet.getColumn(columnLetter);
+      
+      // Add borders to all cells
+      columnCells.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+      });
+    });
+
+    // Generate filename with timestamp and filters
+    const timestamp = new Date().toISOString().split('T')[0];
+    let filename = `users_export_${timestamp}`;
+    
+    if (registeredUsersOnly === "true") {
+      filename += "_registered";
+    }
+    
+    if (startDate && endDate) {
+      filename += `_${startDate}_to_${endDate}`;
+    }
+    
+    filename += '.xlsx';
 
     // Set response headers
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
-    res.setHeader("Content-Disposition", "attachment; filename=users.xlsx");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+
+    console.log("workbook!", workbook);
+    
 
     // Write to response
     await workbook.xlsx.write(res);
     res.end();
+
   } catch (err) {
-    console.error("Excel export error:", err);
     res.status(400).json({
-      error: err.message,
+      error: "Failed to export users to Excel",
+      message: err.message,
     });
   }
 });

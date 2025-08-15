@@ -3,10 +3,12 @@ const router = express.Router();
 import userRoutes from './routes/userRoutes.js'
 import cloudinaryRoutes from './routes/cloudinaryRoutes.js'
 import authRoutes from './routes/authRoutes.js'
+import inventoryRoutes from './routes/inventoryRoutes.js'
 
 router.use("/user",  userRoutes);
 router.use("/files",  cloudinaryRoutes);
 router.use("/auth",  authRoutes);
+router.use("/inventory",  inventoryRoutes);
 
 
 
